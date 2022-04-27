@@ -23,14 +23,16 @@ import org.rbh.tfcadditions.Utility.CarpentersBlocksHandler;
 
 public class CarpentersBlock extends TFCBlockCoverable {
 
+    private static Slab data = new Slab();
+
     private static float[][] bounds = {
-            { 0.0F, 0.0F, 0.0F, 1.0F, 1.0F, 1.0F }, // FULL BLOCK
-            { 0.0F, 0.0F, 0.0F, 0.5F, 1.0F, 1.0F }, // SLAB WEST
-            { 0.5F, 0.0F, 0.0F, 1.0F, 1.0F, 1.0F }, // SLAB EAST
-            { 0.0F, 0.0F, 0.0F, 1.0F, 0.5F, 1.0F }, // SLAB DOWN
-            { 0.0F, 0.5F, 0.0F, 1.0F, 1.0F, 1.0F }, // SLAB UP
-            { 0.0F, 0.0F, 0.0F, 1.0F, 1.0F, 0.5F }, // SLAB NORTH
-            { 0.0F, 0.0F, 0.5F, 1.0F, 1.0F, 1.0F }  // SLAB SOUTH
+        { 0.0F, 0.0F, 0.0F, 1.0F, 1.0F, 1.0F }, // FULL BLOCK
+        { 0.0F, 0.0F, 0.0F, 0.5F, 1.0F, 1.0F }, // SLAB WEST
+        { 0.5F, 0.0F, 0.0F, 1.0F, 1.0F, 1.0F }, // SLAB EAST
+        { 0.0F, 0.0F, 0.0F, 1.0F, 0.5F, 1.0F }, // SLAB DOWN
+        { 0.0F, 0.5F, 0.0F, 1.0F, 1.0F, 1.0F }, // SLAB UP
+        { 0.0F, 0.0F, 0.0F, 1.0F, 1.0F, 0.5F }, // SLAB NORTH
+        { 0.0F, 0.0F, 0.5F, 1.0F, 1.0F, 1.0F }  // SLAB SOUTH
     };
 
     public CarpentersBlock(Material material)
@@ -49,60 +51,34 @@ public class CarpentersBlock extends TFCBlockCoverable {
         return IconRegistry.icon_uncovered_quartered;
     }
 
-    @Override
-    /**
-     * Alter type.
-     */
-    protected boolean onHammerLeftClick(TEBase TE, EntityPlayer entityPlayer)
+    private boolean onHammerInteraction(TEBase TE)
     {
-        int data = TE.getData();
-
-        if (++data > Slab.SLAB_Z_POS) {
-            data = Slab.BLOCK_FULL;
+        if (data.isFullCube(TE)) {
+            ForgeDirection side = ForgeDirection.getOrientation(EventHandler.eventFace).getOpposite();
+            data.setDirection(TE, side);
+        } else {
+            data.setFullCube(TE);
         }
-
-        TE.setData(data);
 
         return true;
     }
 
     @Override
     /**
-     * Alternate between full 1m cube and slab.
+     * Alter type.
+     */
+    protected boolean onHammerLeftClick(TEBase TE, EntityPlayer entityPlayer)
+    {
+        return onHammerInteraction(TE);
+    }
+
+    @Override
+    /**
+     * Alter type.
      */
     protected boolean onHammerRightClick(TEBase TE, EntityPlayer entityPlayer)
     {
-        int data = TE.getData();
-
-        if (data == Slab.BLOCK_FULL) {
-            switch (EventHandler.eventFace)
-            {
-                case 0:
-                    data = Slab.SLAB_Y_POS;
-                    break;
-                case 1:
-                    data = Slab.SLAB_Y_NEG;
-                    break;
-                case 2:
-                    data = Slab.SLAB_Z_POS;
-                    break;
-                case 3:
-                    data = Slab.SLAB_Z_NEG;
-                    break;
-                case 4:
-                    data = Slab.SLAB_X_POS;
-                    break;
-                case 5:
-                    data = Slab.SLAB_X_NEG;
-                    break;
-            }
-        } else {
-            data = Slab.BLOCK_FULL;
-        }
-
-        TE.setData(data);
-
-        return true;
+        return onHammerInteraction(TE);
     }
 
     @Override
@@ -164,6 +140,15 @@ public class CarpentersBlock extends TFCBlockCoverable {
 
             TE.setData(data);
         }
+    }
+
+    @Override
+    /**
+     * Checks to see if you can place this block can be placed on that side of a block: BlockLever overrides
+     */
+    public boolean canPlaceBlockOnSide(World world, int x, int y, int z, int side)
+    {
+        return canPlaceBlockAt(world, x, y, z);
     }
 
     @Override
@@ -279,3 +264,4 @@ public class CarpentersBlock extends TFCBlockCoverable {
     }
 
 }
+

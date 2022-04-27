@@ -2,6 +2,7 @@ package org.rbh.tfcadditions.Blocks.CarpentersBlocks;
 
 import com.carpentersblocks.CarpentersBlocks;
 import com.carpentersblocks.data.Slope;
+import com.carpentersblocks.data.Slope.Type;
 import com.carpentersblocks.tileentity.TEBase;
 import com.carpentersblocks.util.EntityLivingUtil;
 import com.carpentersblocks.util.handler.EventHandler;
@@ -19,8 +20,11 @@ import net.minecraft.entity.EntityLivingBase;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
-import net.minecraft.tileentity.TileEntity;
-import net.minecraft.util.*;
+import net.minecraft.util.AxisAlignedBB;
+import net.minecraft.util.IIcon;
+import net.minecraft.util.MathHelper;
+import net.minecraft.util.MovingObjectPosition;
+import net.minecraft.util.Vec3;
 import net.minecraft.world.IBlockAccess;
 import net.minecraft.world.World;
 import net.minecraftforge.common.util.ForgeDirection;
@@ -78,15 +82,7 @@ public class CarpentersSlope extends TFCBlockCoverable {
      */
     protected boolean onHammerLeftClick(TEBase TE, EntityPlayer entityPlayer)
     {
-        int slopeID = TE.getData();
-        Slope slope = Slope.slopesList[slopeID];
-
-        /* Cycle between slope types based on current slope. */
-        slopeID = slope.slopeType.onHammerLeftClick(slope, slopeID);
-
-        TE.setData(slopeID);
-
-        return true;
+        return rotateBlock(TE.getWorldObj(), TE.xCoord, TE.yCoord, TE.zCoord, ForgeDirection.UP);
     }
 
     @Override
@@ -95,14 +91,9 @@ public class CarpentersSlope extends TFCBlockCoverable {
      */
     protected boolean onHammerRightClick(TEBase TE, EntityPlayer entityPlayer)
     {
-        int slopeID = TE.getData();
-        Slope slope = Slope.slopesList[slopeID];
-
-        /* Transform slope to next type. */
-        slopeID = slope.slopeType.onHammerRightClick(slope, slopeID);
-
-        TE.setData(slopeID);
-
+        Slope slope = Slope.getSlope(TE);
+        Slope newSlope = slope.slopeType.getNextSlopeType(slope);
+        TE.setData(newSlope.slopeID);
         return true;
     }
 
@@ -143,8 +134,7 @@ public class CarpentersSlope extends TFCBlockCoverable {
 
             if (TE != null) {
 
-                int slopeID = TE.getData();
-                Slope slope = Slope.slopesList[slopeID];
+                Slope slope = Slope.getSlope(TE);
 
                 switch (slope.getPrimaryType()) {
                     case PRISM:
@@ -180,7 +170,7 @@ public class CarpentersSlope extends TFCBlockCoverable {
 
         if (TE != null) {
 
-            Slope slope = Slope.slopesList[TE.getData()];
+            Slope slope = Slope.getSlope(TE);
             SlopeUtil slopeUtil = new SlopeUtil();
 
             int numPasses = slopeUtil.getNumPasses(slope);
@@ -200,7 +190,7 @@ public class CarpentersSlope extends TFCBlockCoverable {
                         finalTrace = super.collisionRayTrace(world, x, y, z, startVec, endVec);
                     }
                 }
-                if (slope.type.equals(Slope.Type.OBLIQUE_EXT)) {
+                if (slope.type.equals(Type.OBLIQUE_EXT)) {
                     --precision;
                 }
             }
@@ -232,7 +222,7 @@ public class CarpentersSlope extends TFCBlockCoverable {
 
             AxisAlignedBB box = null;
 
-            Slope slope = Slope.slopesList[TE.getData()];
+            Slope slope = Slope.getSlope(TE);
             SlopeUtil slopeUtil = new SlopeUtil();
 
             int precision = slopeUtil.getNumBoxesPerPass(slope);
@@ -253,7 +243,7 @@ public class CarpentersSlope extends TFCBlockCoverable {
                     }
                 }
 
-                if (slope.type.equals(Slope.Type.OBLIQUE_EXT)) {
+                if (slope.type.equals(Type.OBLIQUE_EXT)) {
                     --precision;
                 }
 
@@ -272,7 +262,7 @@ public class CarpentersSlope extends TFCBlockCoverable {
 
         if (TE != null) {
             if (isBlockSolid(blockAccess, x, y, z)) {
-                return Slope.slopesList[TE.getData()].isFaceFull(side);
+                return Slope.getSlope(TE).isFaceFull(side);
             }
         }
 
@@ -287,8 +277,8 @@ public class CarpentersSlope extends TFCBlockCoverable {
     {
         if (TE_adj.getBlockType() == this) {
 
-            Slope slope_src = Slope.slopesList[TE_src.getData()];
-            Slope slope_adj = Slope.slopesList[TE_adj.getData()];
+            Slope slope_src = Slope.getSlope(TE_src);
+            Slope slope_adj = Slope.getSlope(TE_adj);
 
             if (!slope_adj.hasSide(side_adj)) {
                 return false;
@@ -403,6 +393,8 @@ public class CarpentersSlope extends TFCBlockCoverable {
      */
     public void onBlockPlacedBy(World world, int x, int y, int z, EntityLivingBase entityLiving, ItemStack itemStack)
     {
+        super.onBlockPlacedBy(world, x, y, z, entityLiving, itemStack);
+
         TEBase TE = getTileEntity(world, x, y, z);
 
         if (TE != null) {
@@ -416,91 +408,91 @@ public class CarpentersSlope extends TFCBlockCoverable {
             ForgeDirection dir = EntityLivingUtil.getFacing(entityLiving).getOpposite();
 
             switch (metadata) {
-                case META_WEDGE:
+            case META_WEDGE:
 
-                    slopeID = getWedgeOrientation(dir, EventHandler.eventFace, EventHandler.hitX, EventHandler.hitY, EventHandler.hitZ);
+                slopeID = getWedgeOrientation(dir, EventHandler.eventFace, EventHandler.hitX, EventHandler.hitY, EventHandler.hitZ);
+
+                if (!entityLiving.isSneaking()) {
+                    slopeID = SlopeTransform.transformWedge(world, slopeID, x, y, z);
+                    TE.setData(slopeID);
+                    SlopeTransform.transformAdjacentWedges(world, slopeID, x, y, z);
+                }
+
+                break;
+            case META_OBLIQUE_INT:
+
+                switch (corner) {
+                case CORNER_SE:
+                    slopeID = isPositive ? Slope.ID_OBL_INT_POS_SE : Slope.ID_OBL_INT_NEG_SE;
+                    break;
+                case CORNER_NE:
+                    slopeID = isPositive ? Slope.ID_OBL_INT_POS_NE : Slope.ID_OBL_INT_NEG_NE;
+                    break;
+                case CORNER_NW:
+                    slopeID = isPositive ? Slope.ID_OBL_INT_POS_NW : Slope.ID_OBL_INT_NEG_NW;
+                    break;
+                case CORNER_SW:
+                    slopeID = isPositive ? Slope.ID_OBL_INT_POS_SW : Slope.ID_OBL_INT_NEG_SW;
+                    break;
+                }
+
+                break;
+            case META_OBLIQUE_EXT:
+
+                switch (corner) {
+                case CORNER_SE:
+                    slopeID = isPositive ? Slope.ID_OBL_EXT_POS_SE : Slope.ID_OBL_EXT_NEG_SE;
+                    break;
+                case CORNER_NE:
+                    slopeID = isPositive ? Slope.ID_OBL_EXT_POS_NE : Slope.ID_OBL_EXT_NEG_NE;
+                    break;
+                case CORNER_NW:
+                    slopeID = isPositive ? Slope.ID_OBL_EXT_POS_NW : Slope.ID_OBL_EXT_NEG_NW;
+                    break;
+                case CORNER_SW:
+                    slopeID = isPositive ? Slope.ID_OBL_EXT_POS_SW : Slope.ID_OBL_EXT_NEG_SW;
+                    break;
+                }
+
+                break;
+            case META_PRISM:
+
+                if (isPositive) {
+
+                    slopeID = Slope.ID_PRISM_POS;
 
                     if (!entityLiving.isSneaking()) {
-                        slopeID = SlopeTransform.transformWedge(world, slopeID, x, y, z);
+                        slopeID = SlopeTransform.transformPrism(world, slopeID, x, y, z);
                         TE.setData(slopeID);
-                        SlopeTransform.transformAdjacentWedges(world, slopeID, x, y, z);
+                        SlopeTransform.transformAdjacentPrisms(world, x, y, z);
                     }
 
+                } else {
+
+                    slopeID = Slope.ID_PRISM_NEG;
+
+                }
+
+                break;
+            case META_PRISM_SLOPE:
+
+                switch (dir) {
+                case NORTH:
+                    slopeID = Slope.ID_PRISM_WEDGE_POS_S;
                     break;
-                case META_OBLIQUE_INT:
-
-                    switch (corner) {
-                        case CORNER_SE:
-                            slopeID = isPositive ? Slope.ID_OBL_INT_POS_SE : Slope.ID_OBL_INT_NEG_SE;
-                            break;
-                        case CORNER_NE:
-                            slopeID = isPositive ? Slope.ID_OBL_INT_POS_NE : Slope.ID_OBL_INT_NEG_NE;
-                            break;
-                        case CORNER_NW:
-                            slopeID = isPositive ? Slope.ID_OBL_INT_POS_NW : Slope.ID_OBL_INT_NEG_NW;
-                            break;
-                        case CORNER_SW:
-                            slopeID = isPositive ? Slope.ID_OBL_INT_POS_SW : Slope.ID_OBL_INT_NEG_SW;
-                            break;
-                    }
-
+                case SOUTH:
+                    slopeID = Slope.ID_PRISM_WEDGE_POS_N;
                     break;
-                case META_OBLIQUE_EXT:
-
-                    switch (corner) {
-                        case CORNER_SE:
-                            slopeID = isPositive ? Slope.ID_OBL_EXT_POS_SE : Slope.ID_OBL_EXT_NEG_SE;
-                            break;
-                        case CORNER_NE:
-                            slopeID = isPositive ? Slope.ID_OBL_EXT_POS_NE : Slope.ID_OBL_EXT_NEG_NE;
-                            break;
-                        case CORNER_NW:
-                            slopeID = isPositive ? Slope.ID_OBL_EXT_POS_NW : Slope.ID_OBL_EXT_NEG_NW;
-                            break;
-                        case CORNER_SW:
-                            slopeID = isPositive ? Slope.ID_OBL_EXT_POS_SW : Slope.ID_OBL_EXT_NEG_SW;
-                            break;
-                    }
-
+                case WEST:
+                    slopeID = Slope.ID_PRISM_WEDGE_POS_E;
                     break;
-                case META_PRISM:
-
-                    if (isPositive) {
-
-                        slopeID = Slope.ID_PRISM_POS;
-
-                        if (!entityLiving.isSneaking()) {
-                            slopeID = SlopeTransform.transformPrism(world, slopeID, x, y, z);
-                            TE.setData(slopeID);
-                            SlopeTransform.transformAdjacentPrisms(world, x, y, z);
-                        }
-
-                    } else {
-
-                        slopeID = Slope.ID_PRISM_NEG;
-
-                    }
-
+                case EAST:
+                    slopeID = Slope.ID_PRISM_WEDGE_POS_W;
                     break;
-                case META_PRISM_SLOPE:
+                default: {}
+                }
 
-                    switch (dir) {
-                        case NORTH:
-                            slopeID = Slope.ID_PRISM_WEDGE_POS_S;
-                            break;
-                        case SOUTH:
-                            slopeID = Slope.ID_PRISM_WEDGE_POS_N;
-                            break;
-                        case WEST:
-                            slopeID = Slope.ID_PRISM_WEDGE_POS_E;
-                            break;
-                        case EAST:
-                            slopeID = Slope.ID_PRISM_WEDGE_POS_W;
-                            break;
-                        default: {}
-                    }
-
-                    break;
+                break;
             }
 
             TE.setData(slopeID);
@@ -528,52 +520,14 @@ public class CarpentersSlope extends TFCBlockCoverable {
     @Override
     public ForgeDirection[] getValidRotations(World worldObj, int x, int y,int z)
     {
-        ForgeDirection[] axises = {ForgeDirection.UP, ForgeDirection.DOWN};
-        return axises;
+        return new ForgeDirection[] { ForgeDirection.UP, ForgeDirection.DOWN };
     }
 
     @Override
     public boolean rotateBlock(World world, int x, int y, int z, ForgeDirection axis)
     {
-        // to correctly support archimedes' ships mod:
-        // if Axis is DOWN, block rotates to the left, north -> west -> south -> east
-        // if Axis is UP, block rotates to the right:  north -> east -> south -> west
-
-        TileEntity tile = world.getTileEntity(x, y, z);
-        if (tile != null && tile instanceof TEBase)
-        {
-            TEBase cbTile = (TEBase)tile;
-            int data = cbTile.getData();
-            int dataAngle = data % 4;
-            switch (axis)
-            {
-                case UP:
-                {
-                    switch (dataAngle)
-                    {
-                        case 0:{cbTile.setData(data+3); break;}
-                        case 1:{cbTile.setData(data+1); break;}
-                        case 2:{cbTile.setData(data-2); break;}
-                        case 3:{cbTile.setData(data-2); break;}
-                    }
-                    break;
-                }
-                case DOWN:
-                {
-                    switch (dataAngle)
-                    {
-                        case 0:{cbTile.setData(data+2); break;}
-                        case 1:{cbTile.setData(data+2); break;}
-                        case 2:{cbTile.setData(data-1); break;}
-                        case 3:{cbTile.setData(data-3); break;}
-                    }
-                    break;
-                }
-                default: return false;
-            }
-            return true;
-        }
-        return false;
+        return Slope.rotate(world, x, y, z, axis);
     }
 
 }
+

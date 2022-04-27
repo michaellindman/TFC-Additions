@@ -84,7 +84,7 @@ public class TFCBlockCoverable extends BlockCoverable {
 
         if (TE == null) {
             return;
-        } else if (!PlayerPermissions.hasElevatedPermission(TE, entityPlayer)) {
+        } else if (!PlayerPermissions.hasElevatedPermission(TE, entityPlayer, false)) {
             return;
         }
 
@@ -175,7 +175,7 @@ public class TFCBlockCoverable extends BlockCoverable {
         // If no prior event occurred, try regular activation
         if (!actionResult.altered) {
 
-            if (PlayerPermissions.hasElevatedPermission(TE, entityPlayer)) {
+            if (PlayerPermissions.hasElevatedPermission(TE, entityPlayer, false)) {
 
                 ItemStack itemStack = entityPlayer.getCurrentEquippedItem();
 
@@ -326,3 +326,4 @@ public class TFCBlockCoverable extends BlockCoverable {
         }
     }
 }
+
